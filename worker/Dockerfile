@@ -1,8 +1,10 @@
+# Use handbrake pre-compiled with NVENC and NVDEC support
 FROM zocker160/handbrake-nvenc:latest AS handbrake_source
 
+# Install node v20
 RUN groupadd --gid 1000 node \
   && useradd --uid 1000 --gid node --shell /bin/bash --create-home node
-  
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
 		ca-certificates curl wget gnupg dirmngr xz-utils libatomic1 \
