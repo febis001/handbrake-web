@@ -1,5 +1,5 @@
 # Build client -------------------------------------------------------------------------------------
-FROM node:alpine AS client-build
+FROM node:20-alpine AS client-build
 
 WORKDIR /handbrake-web/client
 
@@ -13,9 +13,9 @@ COPY shared /handbrake-web/shared
 RUN npm run build
 
 # Main ---------------------------------------------------------------------------------------------
-FROM node:alpine3.20 AS main
+FROM node:20-alpine AS main
 
-RUN apk add --no-cache python3 make g++
+RUN apk add --no-cache python3 make g++ nano
 
 WORKDIR /handbrake-web/server
 
