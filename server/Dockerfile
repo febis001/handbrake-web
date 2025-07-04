@@ -10,6 +10,8 @@ RUN npm run build
 # Main ---------------------------------------------------------------------------------------------
 FROM node:alpine3.20 AS main
 
+RUN apk add --no-cache python3 make g++
+
 COPY --from=client-build /handbrake-web/client/build /handbrake-web/client
 COPY server /handbrake-web/server
 COPY shared /handbrake-web/shared
