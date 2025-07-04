@@ -30,7 +30,7 @@ ENV NODE_ENV=production
 RUN npm install
 
 # Create directories
-RUN mkdir /data && chown node /data && mkdir /video && chown node /data
+RUN mkdir /data && chown node /data && mkdir /video && chown node /video
 
 # Default environment variables
 ENV HANDBRAKE_MODE=worker

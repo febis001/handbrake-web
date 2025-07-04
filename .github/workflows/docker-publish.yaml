@@ -23,10 +23,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: handbrake-web-server
+          - image: handbrake-web-server-forked
             file: server/Dockerfile
 
-          - image: handbrake-web-worker
+          - image: handbrake-web-worker-forked
             file: worker/Dockerfile
 
     permissions:

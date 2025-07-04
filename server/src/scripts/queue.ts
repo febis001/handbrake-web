@@ -296,7 +296,8 @@ export function ResetJob(job_id: number) {
 	if (job) {
 		if (
 			job.status.transcode_stage == TranscodeStage.Stopped ||
-			job.status.transcode_stage == TranscodeStage.Finished
+			job.status.transcode_stage == TranscodeStage.Finished ||
+			job.status.transcode_stage == TranscodeStage.Error
 		) {
 			// Update Job in database
 			InsertJobToJobsOrderTable(job_id);
@@ -315,7 +316,7 @@ export function ResetJob(job_id: number) {
 			JobForAvailableWorkers(job_id);
 		} else {
 			logger.error(
-				`[server] [error] Job with id '${job_id}' cannot be reset because it is not in a stopped/finished state.`
+				`[server] [error] Job with id '${job_id}' cannot be reset because it is not in a stopped/finished/error state.`
 			);
 		}
 	} else {
