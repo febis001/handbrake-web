@@ -1,20 +1,22 @@
-FROM zocker160/handbrake-nvenc:latest AS handbrake_source
+# STAGE 1: Die "Node.js Quelle"
+# We use the official image as a clean source for a guaranteed Node.js v20 installation.
+FROM node:20-alpine AS node_source
 
-RUN groupadd --gid 1000 node \
-  && useradd --uid 1000 --gid node --shell /bin/bash --create-home node
-  
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-		ca-certificates curl wget gnupg dirmngr xz-utils libatomic1 \
-        dumb-init \
-		curl \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+FROM jlesage/handbrake:latest
 
-RUN curl -sL https://deb.nodesource.com/setup_20.x -o nodesource_setup.sh
-RUN bash nodesource_setup.sh
-RUN apt install -y --no-install-recommends nodejs
+# USER root
 
-RUN node -v
+# Copy the complete and functional Node.js environment from the first stage.
+# This is robust, clean, and version-accurate.
+COPY --from=node_source /usr/local/ /usr/local/
+
+RUN echo "Node.js Version: $(node -v)" && echo "NPM Version: $(npm -v)"
+
+RUN apk add --no-cache dumb-init
+
+# Create a non-root user and group for your application to run securely.
+# This is a good practice and matches your original intent.
+RUN addgroup -S node && adduser -S -G node node
 
 # Set the working directory for your application.
 WORKDIR /handbrake-web/worker
@@ -37,6 +39,7 @@ RUN mkdir -p /data /video && chown node:node /data /video
 ENV HANDBRAKE_MODE=worker
 ENV DATA_PATH=/data
 ENV VIDEO_PATH=/video
+# The PATH should already include /usr/bin where HandBrakeCLI is.
 
 # Set the entrypoint to dumb-init to properly handle signals.
 # This overrides the base image's entrypoint.

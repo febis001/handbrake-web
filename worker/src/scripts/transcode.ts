@@ -64,6 +64,8 @@ export async function StartTranscode(jobID: number, socket: Socket) {
 		const jobLogger = createJobLogger(jobID);
 
 		handbrake = spawn('HandBrakeCLI', [
+			'--enable-hw-decoding',
+			'nvdec',
 			'--preset-import-file',
 			presetPath!,
 			'--preset',

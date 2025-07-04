@@ -1,0 +1,121 @@
+# --- Stage 1: HandBrakeCLI Builder (Alpine-based, from jlesage) ---
+# This stage uses the jlesage/handbrake image, which already contains pre-compiled HandBrakeCLI binaries
+# with hardware acceleration support. Since it's Alpine-based, its binaries are compatible with your
+# target 'main' image.
+FROM jlesage/handbrake:latest AS handbrake_builder
+
+# No build or installation steps needed here. We will just copy the pre-compiled binaries.
+# IMPORTANT: Verify the exact paths of HandBrakeCLI and its related files within the jlesage/handbrake image.
+# You can do this by running: docker run --rm -it jlesage/handbrake:latest bash
+# Then use 'find / -name HandBrakeCLI' and 'ls -l /usr/lib/handbrake', etc.
+# The COPY paths below are based on common installation locations.
+
+# --- Stage 2: Your final Node.js application image (now correctly Alpine-based) ---
+FROM node:20-alpine AS main
+
+ARG TARGETARCH
+
+# Remove Debian-specific apt source configuration.
+# This line is INCORRECT for Alpine and has been removed.
+# RUN sed -i -e's/ main/ main contrib non-free non-free-firmware/g' /etc/apk/sources.list.d/debian.sources
+
+# Update the Alpine package index.
+RUN apk update
+
+# Install dumb-init (Alpine version).
+RUN apk add --no-cache dumb-init
+
+RUN apk add --no-cache glibc glibc-locale glibc-i18n
+RUN /usr/glibc-compat/bin/localedef -i en_US -f UTF-8 en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+# Set LD_LIBRARY_PATH for glibc
+ENV LD_LIBRARY_PATH="/usr/glibc-compat/lib:/usr/glibc-compat/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+
+# Install necessary runtime dependencies for HandBrakeCLI on Alpine.
+# This list is adapted from jlesage/handbrake's dependencies and common Alpine package names.
+# Includes packages for both Intel/VAAPI (if needed) and general media handling.
+RUN apk add --no-cache \
+    libstdc++ \
+	gtk4.0 \
+	gst-plugins-good \
+	gst-libav \
+	libgudev \
+	libnotify \
+	libsamplerate \
+	libass \
+	libdrm \
+	jansson \
+	xz \
+	numactl \
+	libturbojpeg \
+	# Media codecs:
+	libtheora \
+	lame-libs \
+	opus \
+	libvorbis \
+	speex \
+	libvpx \
+	x264-libs \
+	# For QSV detection
+	pciutils \
+	# To read encrypted DVDs
+	libdvdcss \
+	# A font is needed.
+	font-cantarell \
+	# For main, big icons:
+	librsvg \
+	# For all other small icons:
+	adwaita-icon-theme \
+	# For optical drive listing:
+	lsscsi \
+	# For watchfolder
+	bash \
+	coreutils \
+	findutils \
+	expect \
+    && rm -rf /var/cache/apk/*
+
+# Copy the compiled HandBrakeCLI binaries from the handbrake_builder stage.
+# These paths MUST match the actual installation paths within the jlesage/handbrake image.
+COPY --from=handbrake_builder /usr/bin/HandBrakeCLI /usr/bin/HandBrakeCLI
+
+COPY --from=handbrake_builder /usr/lib/libvpx.so.8 /usr/lib/
+COPY --from=handbrake_builder /usr/lib/libva-drm.so.2 /usr/lib/
+COPY --from=handbrake_builder /usr/lib/libdrm.so.2 /usr/lib/
+COPY --from=handbrake_builder /usr/lib/libva.so.2 /usr/lib/
+
+# Ensure NVIDIA runtime libraries can be loaded.
+# These paths are provided by the HOST via the `--gpus all` mapping.
+# '/usr/local/cuda/lib64' is the standard CUDA library path.
+# '/usr/lib/x86_64-linux-gnu' is a common path on Debian/Ubuntu, might not be needed on Alpine,
+# but it's often harmless if the directory exists on the host.
+ENV LD_LIBRARY_PATH="/usr/lib64:/usr/local/nvidia/lib64:/usr/local/cuda/lib64:/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+
+# Set the PATH for HandBrakeCLI so it can be called directly.
+# We copy HandBrakeCLI to /usr/local/bin, which is usually in the PATH.
+ENV PATH="/usr/bin:${PATH}"
+
+WORKDIR /handbrake-web/worker
+
+# Node.js dependencies installation.
+# Copy package.json and package-lock.json first for better Docker layer caching.
+COPY worker/package*.json /handbrake-web/worker/
+ENV NODE_ENV=production
+RUN npm install
+
+# Copy the rest of your application code after dependencies are installed.
+COPY worker/ /handbrake-web/worker
+COPY shared /handbrake-web/shared
+
+# Create directories and set permissions.
+RUN mkdir -p /data /video && chown node:node /data /video
+
+# Default environment variables.
+ENV HANDBRAKE_MODE=worker
+ENV DATA_PATH=/data
+ENV VIDEO_PATH=/video
+
+# Start application.
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+CMD ["npm", "run", "prod"]
